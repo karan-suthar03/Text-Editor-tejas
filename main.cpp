@@ -46,6 +46,7 @@ struct Buffer {
     uint  gap_start;
     uint  gap_end;
     uint  cursor_pos;
+    const char* file_name;
 };
 
 global Window        G_window;
@@ -69,19 +70,19 @@ static void printBuffer() {
 
 static char* loadFileIntoBuffer(const char* file_path, int *file_size) {
     
-    HANDLE hFile = CreateFileA(file_path, GENERIC_READ, FILE_SHARE_READ,
-                               NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
-                               NULL);
+    HANDLE file_handle = CreateFileA(file_path, GENERIC_READ, FILE_SHARE_READ,
+                                     NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
+                                     NULL);
 
-    DWORD f_size = GetFileSize(hFile, NULL);
+    DWORD f_size     = GetFileSize(file_handle, NULL);
     DWORD total_size = f_size + GAP_SIZE;
-    char* raw = (char*)GlobalAlloc(GMEM_FIXED, total_size);
+    char* raw        = (char*)GlobalAlloc(GMEM_FIXED, total_size);
     memset(raw, 0, total_size);
 
     DWORD chars_read = 0;
-    ReadFile(hFile, raw, f_size, &chars_read, NULL);
+    ReadFile(file_handle, raw, f_size, &chars_read, NULL);
 
-    CloseHandle(hFile);
+    CloseHandle(file_handle);
 
     // normalizing new lines form /r/n to /n
     char* normalized = (char*) GlobalAlloc(GMEM_FIXED, total_size);
@@ -106,96 +107,88 @@ static char* loadFileIntoBuffer(const char* file_path, int *file_size) {
     return normalized;
 }
 
-// FIXME(Tejas): GPT
-static POINT getCursorPos(int font_w, int font_h) {
-    int x = 0, y = 0;
-    int index = 0;
+static void saveFile() {
+    
+    HANDLE file_handle = CreateFileA(G_buffer.file_name, GENERIC_WRITE, 0,
+                                     NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL,
+                                     NULL);
 
-    for (uint i = 0; i < G_buffer.data.capacity; i++) {
-        if (i >= G_buffer.gap_start && i < G_buffer.gap_end) continue;
+
+    uint size = G_buffer.data.count + 1;
+    char* buffer = (char*) GlobalAlloc(GMEM_FIXED, sizeof(char) * size * 2);
+    int index = 0, i = 0;
+
+    while (index < G_buffer.data.capacity) {
+
+        if (index >= G_buffer.gap_start && index < G_buffer.gap_end) {
+            index = (int) G_buffer.gap_end + 1;
+            continue;
+        }
+
+        char ch = G_buffer.data.chars[index];
+
+        if (ch == '\n') {
+            buffer[i++] = '\r';
+            buffer[i++] = '\n';
+        }
+
+        else {
+            buffer[i++] = ch;
+        }
+
+        index++;
+    }
+
+    buffer[i] = '\0';
+
+    DWORD bytesWritten;
+    WriteFile(file_handle, buffer, (DWORD)strlen(buffer),
+              &bytesWritten, NULL);
+
+    GlobalFree(buffer);
+    CloseHandle(file_handle);
+}
+
+static POINT getCursorPos(int font_w, int font_h) {
+
+    int x = 0, y = 0;
+
+    for (uint index = 0; index < G_buffer.data.capacity; index++) {
 
         if (index == G_buffer.cursor_pos) break;
 
-        char ch = G_buffer.data.chars[i];
+        if (index >= G_buffer.gap_start && index < G_buffer.gap_end) {
+            continue;
+        }
+
+        char ch = G_buffer.data.chars[index];
         if (ch == '\n') {
             x = 0;
             y += font_h;
         } else {
             x += font_w;
         }
-
-        index++;
     }
-
-    uint gap_size = G_buffer.gap_end - G_buffer.gap_start;
-    if (index > G_buffer.gap_start) index = (int)(index - gap_size);
-
 
     POINT pos = { x, y };
     return pos;
 }
 
-// static POINT getCursorPos(int font_w, int font_h) {
-
-//     int x = 0, y = 0;
-
-//     int index = 0;
-//     for (int i = 0; i < G_buffer.data.count; i++, index++) {
-
-//         if (index >= G_buffer.gap_start && index < G_buffer.gap_end) {
-//             index = (int)(G_buffer.gap_end);
-//             continue;
-//         }
-
-//         if (index == G_buffer.cursor_pos) break;
-
-//         if (G_buffer.data.chars[index] == '\n') {
-//             y += font_h;       
-//             x = 0;
-//         } else {
-//             x += font_w; 
-//         }
-//     }
-
-//     POINT pos = { x, y };
-//     return pos;
-// }
-
 static void calculateLines() {
 
     G_buffer.lines.count = 0;
-    uint start = 0;
+    uint start = 0, index = 0;
 
-    for (int i = 0, index = 0; i < G_buffer.data.count; index++) {
+    // FIXME(Tejas): no idea why, but I changed < to <= here and the last
+    //               line renders properly.
+    for (int i = 0; i <= G_buffer.data.count; i++) {
 
-        if (index >= G_buffer.gap_start && index <= G_buffer.gap_end) {
-            index = G_buffer.gap_end + 1;
+        if (index >= G_buffer.gap_start && index < G_buffer.gap_end) {
+            index = (int)(G_buffer.gap_end);
             continue;
         }
 
-        if (index >= G_buffer.data.capacity) {
-            Line line = { };
-            line.start = start;
-            line.end   = index;
-
-            if (G_buffer.lines.count >= G_buffer.lines.capacity) {
-
-                if (G_buffer.lines.capacity == 0) G_buffer.lines.capacity = 16;
-
-                G_buffer.lines.capacity *= 2;
-
-                Line* new_lines = (Line*)GlobalReAlloc(G_buffer.lines.items,
-                                                       G_buffer.lines.capacity * sizeof(Line),
-                                                       GMEM_MOVEABLE);
-                if (!new_lines) return;
-                G_buffer.lines.items = new_lines;
-            }
-
-            G_buffer.lines.items[G_buffer.lines.count++] = line;
-            start = line.end + 1;
-            
-            break;   
-        }
+        if (index >= G_buffer.data.capacity) break;   
 
         char ch = G_buffer.data.chars[index];
 
@@ -212,7 +205,7 @@ static void calculateLines() {
 
                 Line* new_lines = (Line*)GlobalReAlloc(G_buffer.lines.items,
                                                        G_buffer.lines.capacity * sizeof(Line),
-                                                       GMEM_MOVEABLE);
+                                                       GMEM_FIXED);
                 if (!new_lines) return;
                 G_buffer.lines.items = new_lines;
             }
@@ -221,7 +214,29 @@ static void calculateLines() {
             start = line.end + 1;
         }
 
-        i++;
+        index++;
+    }
+
+    if (start < index) {
+        
+        Line line = { };
+        line.start = start;
+        line.end   = index;
+
+        if (G_buffer.lines.count >= G_buffer.lines.capacity) {
+
+            if (G_buffer.lines.capacity == 0) G_buffer.lines.capacity = 16;
+
+            G_buffer.lines.capacity *= 2;
+
+            Line* new_lines = (Line*)GlobalReAlloc(G_buffer.lines.items,
+                                                   G_buffer.lines.capacity * sizeof(Line),
+                                                   GMEM_FIXED);
+            if (!new_lines) return;
+            G_buffer.lines.items = new_lines;
+        }
+
+        G_buffer.lines.items[G_buffer.lines.count++] = line;
     }
 }
 
@@ -316,11 +331,12 @@ static LRESULT WINAPI WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         G_editor_opt.cursor_color = CreatePen(PS_SOLID, 1, RGB(255, 255, 0));
 
         int file_size;
-        G_buffer.data.chars = loadFileIntoBuffer("test.txt", &file_size);
+        G_buffer.file_name     = "test.txt";
+        G_buffer.data.chars    = loadFileIntoBuffer(G_buffer.file_name, &file_size);
         G_buffer.data.capacity = file_size + GAP_SIZE;
         G_buffer.data.count    = file_size;
         G_buffer.gap_start     = file_size;
-        G_buffer.gap_end       = file_size + GAP_SIZE - 1;
+        G_buffer.gap_end       = (file_size + GAP_SIZE) - 1;
         G_buffer.cursor_pos    = G_buffer.gap_start;
 
         G_buffer.lines.capacity = MAX_LINES;
@@ -340,23 +356,24 @@ static LRESULT WINAPI WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     } break;
 
     case WM_KEYDOWN: {
-        bool cursor_moved = false;
-        bool going_forward = false;
+        bool moved = false;
+        bool forward = false;
 
         switch (wParam) {
+
         case VK_LEFT:
             if (G_buffer.cursor_pos > 0) {
                 G_buffer.cursor_pos--;
-                going_forward = false;
-                cursor_moved = true;
+                moved = true;
+                forward = false;
             }
             break;
 
         case VK_RIGHT:
-            if (G_buffer.cursor_pos < G_buffer.data.capacity - 1) {
+            if (G_buffer.cursor_pos + 1 < G_buffer.data.capacity) {
                 G_buffer.cursor_pos++;
-                going_forward = true;
-                cursor_moved = true;
+                moved = true;
+                forward = true;
             }
             break;
 
@@ -365,16 +382,28 @@ static LRESULT WINAPI WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             break;
 
         case VK_DOWN:
+            saveFile();
             break;
         }
 
-        if (cursor_moved) {
-            if (G_buffer.cursor_pos >= G_buffer.gap_start && G_buffer.cursor_pos < G_buffer.gap_end) {
-                G_buffer.cursor_pos = going_forward ? G_buffer.gap_end : G_buffer.gap_start - 1;
+        if (moved) {
+            if (G_buffer.cursor_pos >= G_buffer.gap_start &&
+                G_buffer.cursor_pos <= G_buffer.gap_end) {
+
+                if (forward) {
+                    G_buffer.cursor_pos = G_buffer.gap_end + 1;
+                } else {
+                    G_buffer.cursor_pos = (G_buffer.gap_start > 0) ? (G_buffer.gap_start - 1) : 0;
+                }
+            }
+
+            if (G_buffer.cursor_pos >= G_buffer.data.capacity) {
+                G_buffer.cursor_pos = (G_buffer.data.capacity > 0) ? (G_buffer.data.capacity - 1) : 0;
             }
         }
 
         InvalidateRect(hwnd, NULL, TRUE);
+
     } break;
 
     case WM_PAINT: {
@@ -397,24 +426,25 @@ static LRESULT WINAPI WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         SetTextColor(hdc, G_editor_opt.font_color);
         SetBkMode(hdc, TRANSPARENT);
 
-        // FIXME(Tejas): GPT
-        int x = 5;
+        int x = 0;
         int y = 0;
 
         for (int i = 0; i < G_buffer.lines.count; i++) {
 
             Line line = G_buffer.lines.items[i];
 
-            char temp[4096]; // temp buffer for one line
+            char temp[4096];
             int len = 0;
 
             for (uint j = line.start; j < line.end; j++) {
-                // Skip characters inside the gap
                 if (j >= G_buffer.gap_start && j < G_buffer.gap_end) {
                     continue;
                 }
                 temp[len++] = G_buffer.data.chars[j];
             }
+
+            if (i == G_buffer.lines.count - 1)
+                2;
 
             TextOutA(hdc, x, y, temp, len);
             y += cur_h;
