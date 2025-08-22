@@ -349,17 +349,29 @@ static LRESULT WINAPI WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
     case WM_CHAR: {
 
-        insertCharAtGap((char)wParam);
-        calculateLines();
-        InvalidateRect(hwnd, NULL, TRUE);
+        bool ctrl_down = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+
+        if (!ctrl_down) {
+            insertCharAtGap((char)wParam);
+            calculateLines();
+            InvalidateRect(hwnd, NULL, TRUE);
+        }
 
     } break;
 
     case WM_KEYDOWN: {
+
         bool moved = false;
         bool forward = false;
 
+
         switch (wParam) {
+
+        case 'S': {
+            bool ctrl_down = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+            if (ctrl_down)
+                saveFile();
+        } break;
 
         case VK_LEFT:
             if (G_buffer.cursor_pos > 0) {
@@ -382,7 +394,6 @@ static LRESULT WINAPI WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             break;
 
         case VK_DOWN:
-            saveFile();
             break;
         }
 
