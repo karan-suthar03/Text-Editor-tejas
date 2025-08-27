@@ -58,6 +58,9 @@ static void printBuffer() {
         if (index >= G_buffer.gap_start && index < G_buffer.gap_end)
             index = (int)G_buffer.gap_end;
         char ch = G_buffer.data.chars[index];
+        if (ch == '\r') {
+            printf("\\r");
+        }
         if (ch == '\n') {
             printf("\\n");
         }
@@ -114,39 +117,138 @@ static void saveFile() {
                                      NULL);
 
 
-    uint size = G_buffer.data.count + 1;
-    char* buffer = (char*) GlobalAlloc(GMEM_FIXED, sizeof(char) * size * 2);
-    int index = 0, i = 0;
+    uint buffer_size = (G_buffer.data.count * 2) + 1;
+    char* buffer = (char*) GlobalAlloc(GMEM_FIXED, buffer_size);
 
-    while (index < G_buffer.data.capacity) {
+    DWORD bytesWritten;
 
-        if (index >= G_buffer.gap_start && index < G_buffer.gap_end) {
-            index = (int) G_buffer.gap_end + 1;
+    for (int i = 0, index = 0; i < G_buffer.data.count; i++, index++) {
+
+        if (index >= G_buffer.gap_start && index < G_buffer.gap_end)
+            index = (int)G_buffer.gap_end;
+
+        char ch = G_buffer.data.chars[index];
+        if (ch == '\n') WriteFile(file_handle, "\r\n", 2, &bytesWritten, NULL);   
+        else            WriteFile(file_handle, &ch, 1, &bytesWritten, NULL);   
+    }
+
+    GlobalFree(buffer);
+    CloseHandle(file_handle);
+}
+
+static uint getCursorPosWithoutGap() {
+
+    uint index = 0;
+    for (int i = 0; i < G_buffer.data.count; i++) {
+
+        if (index > G_buffer.gap_start && index < G_buffer.gap_end) {
+            index = G_buffer.gap_end + 1;
             continue;
         }
 
-        char ch = G_buffer.data.chars[index];
+        if (index >= G_buffer.data.capacity) break;
 
-        if (ch == '\n') {
-            buffer[i++] = '\r';
-            buffer[i++] = '\n';
+        if (index == G_buffer.cursor_pos) return i;
+        index++;
+    }
+
+    return G_buffer.data.count;
+}
+
+static uint getCursorRow() {
+
+    uint cursor_pos = G_buffer.cursor_pos;
+
+    for (uint i = 0; i < G_buffer.lines.count; i++) {
+        Line l = G_buffer.lines.items[i];
+        if (cursor_pos >= l.start && cursor_pos <= l.end) return i;
+    }
+
+    return G_buffer.lines.count;
+}
+
+static uint getCursorCol() {
+
+    uint row = getCursorRow();
+    if (row >= G_buffer.lines.count) return 0;
+
+    Line l = G_buffer.lines.items[row];
+
+    uint cursor_pos = G_buffer.cursor_pos;
+    uint index = l.start, i = 0;
+    while (index <= l.end) {
+        if (index > G_buffer.gap_start && index < G_buffer.gap_end) {
+            index = G_buffer.gap_end + 1;
+            continue;
         }
 
-        else {
-            buffer[i++] = ch;
+        if (index == cursor_pos || index >= l.end)
+            return i;
+
+        if (index >= G_buffer.data.capacity)
+            return i;
+
+        index++;
+        i++;
+    }
+
+    return i;
+}
+
+static void moveCursorPrevLine() {
+
+    uint row = getCursorRow();
+    uint col = getCursorCol();
+
+    if (row <= 0) return;
+
+    uint new_row = row - 1;
+    Line l = G_buffer.lines.items[new_row];
+
+    uint index = l.start;
+    for (uint i = 0; i < col; i++) {
+
+        if (index > G_buffer.gap_start && index < G_buffer.gap_end) {
+            index = G_buffer.gap_end + 1;
+            continue;
+        }
+
+        if (index >= l.end) {
+            break;
         }
 
         index++;
     }
 
-    buffer[i] = '\0';
+    G_buffer.cursor_pos = index;
+}
 
-    DWORD bytesWritten;
-    WriteFile(file_handle, buffer, (DWORD)strlen(buffer),
-              &bytesWritten, NULL);
+static void moveCursorNextLine() {
+    
+    uint row = getCursorRow();
+    uint col = getCursorCol();
 
-    GlobalFree(buffer);
-    CloseHandle(file_handle);
+    if (row >= (G_buffer.lines.count - 1)) return;
+
+    uint new_row = row + 1;
+    Line l = G_buffer.lines.items[new_row];
+
+    uint index = l.start;
+    for (uint i = 0; i < col; i++) {
+
+        if (index > G_buffer.gap_start && index < G_buffer.gap_end) {
+            index = G_buffer.gap_end + 1;
+            continue;
+        }
+
+        if (index >= l.end) {
+            break;
+        }
+
+        index++;
+    }
+
+    G_buffer.cursor_pos = index;
 }
 
 static POINT getCursorPos(int font_w, int font_h) {
@@ -369,37 +471,54 @@ static LRESULT WINAPI WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
         case 'S': {
             bool ctrl_down = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
-            if (ctrl_down)
-                saveFile();
+            if (ctrl_down) saveFile();
         } break;
 
-        case VK_LEFT:
+        case 'A': {
+            bool ctrl_down = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+            if (ctrl_down) printBuffer();
+        } break;
+
+        case 'F': {
+            bool ctrl_down = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+            if (ctrl_down) {
+                printf(
+                  "CusorPos: %d Row: %d Col: %d\n",
+                  (int)getCursorPosWithoutGap(),
+                  (int)getCursorRow(),
+                  (int)getCursorCol());
+            }
+        } break;
+
+        case VK_LEFT: {
             if (G_buffer.cursor_pos > 0) {
                 G_buffer.cursor_pos--;
                 moved = true;
                 forward = false;
             }
-            break;
+        } break;
 
-        case VK_RIGHT:
+        case VK_RIGHT: {
             if (G_buffer.cursor_pos + 1 < G_buffer.data.capacity) {
                 G_buffer.cursor_pos++;
                 moved = true;
                 forward = true;
             }
-            break;
+        } break;
 
-        case VK_UP:
-            printBuffer();
-            break;
+        case VK_UP: {
+            moveCursorPrevLine();
+        } break;
 
-        case VK_DOWN:
-            break;
+        case VK_DOWN: {
+            moveCursorNextLine();
+        } break;
+
         }
 
         if (moved) {
-            if (G_buffer.cursor_pos >= G_buffer.gap_start &&
-                G_buffer.cursor_pos <= G_buffer.gap_end) {
+            if (G_buffer.cursor_pos > G_buffer.gap_start &&
+                G_buffer.cursor_pos < G_buffer.gap_end) {
 
                 if (forward) {
                     G_buffer.cursor_pos = G_buffer.gap_end + 1;
