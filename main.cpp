@@ -116,12 +116,7 @@ static void saveFile() {
                                      NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL,
                                      NULL);
 
-
-    uint buffer_size = (G_buffer.data.count * 2) + 1;
-    char* buffer = (char*) GlobalAlloc(GMEM_FIXED, buffer_size);
-
     DWORD bytesWritten;
-
     for (int i = 0, index = 0; i < G_buffer.data.count; i++, index++) {
 
         if (index >= G_buffer.gap_start && index < G_buffer.gap_end)
@@ -132,7 +127,6 @@ static void saveFile() {
         else            WriteFile(file_handle, &ch, 1, &bytesWritten, NULL);   
     }
 
-    GlobalFree(buffer);
     CloseHandle(file_handle);
 }
 
@@ -466,7 +460,6 @@ static LRESULT WINAPI WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         bool moved = false;
         bool forward = false;
 
-
         switch (wParam) {
 
         case 'S': {
@@ -482,11 +475,22 @@ static LRESULT WINAPI WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         case 'F': {
             bool ctrl_down = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
             if (ctrl_down) {
-                printf(
-                  "CusorPos: %d Row: %d Col: %d\n",
-                  (int)getCursorPosWithoutGap(),
-                  (int)getCursorRow(),
-                  (int)getCursorCol());
+                if (G_buffer.cursor_pos + 1 < G_buffer.data.capacity) {
+                    G_buffer.cursor_pos++;
+                    moved = true;
+                    forward = true;
+                }
+            }
+        } break;
+
+        case 'B': {
+            bool ctrl_down = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+            if (ctrl_down) {
+                if (G_buffer.cursor_pos > 0) {
+                    G_buffer.cursor_pos--;
+                    moved = true;
+                    forward = false;
+                }
             }
         } break;
 
@@ -572,9 +576,6 @@ static LRESULT WINAPI WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 }
                 temp[len++] = G_buffer.data.chars[j];
             }
-
-            if (i == G_buffer.lines.count - 1)
-                2;
 
             TextOutA(hdc, x, y, temp, len);
             y += cur_h;
