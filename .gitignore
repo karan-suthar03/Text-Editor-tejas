@@ -3,3 +3,5 @@ todo.md
 test.txt
 
 bin/
+cmake-build-debug/
+build/

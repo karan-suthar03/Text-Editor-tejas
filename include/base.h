@@ -2,9 +2,8 @@
 #ifndef _BASE_H_
 #define _BASE_H_
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdint>
+#include <cstdio>
 
 #define ARRAY_COUNT(x) (sizeof(x) / sizeof(*(x)))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
