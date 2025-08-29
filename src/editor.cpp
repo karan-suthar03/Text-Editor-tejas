@@ -1,5 +1,7 @@
 #include "../include/editor.h"
 
+#include <string>
+
 internal uint get_cursor_row(Buffer* buffer) {
     for (uint i = 0; i < buffer->lines.count; i++) {
         Line l = buffer->lines.items[i];
@@ -147,17 +149,19 @@ void editor_paint(Editor* editor, HDC hdc) {
 
     int y = 0;
     for (uint i = 0; i < editor->buffer.lines.count; i++) {
-        Line line = editor->buffer.lines.items[i];
-        char line_text[4096];
-        int len = 0;
+        auto [start, end] = editor->buffer.lines.items[i];
+        const uint line_length = end - start;
+        std::string line_text;
+        // pre allocating needed memory to the string
+        line_text.reserve(line_length);
 
-        for (uint j = line.start; j < line.end; j++) {
+        for (uint j = start; j < end; j++) {
             if (j >= editor->buffer.gap_start && j < editor->buffer.gap_end) {
-                continue;
+                continue; // skip gaps
             }
-            line_text[len++] = editor->buffer.data.chars[j];
+            line_text.push_back(editor->buffer.data.chars[j]);
         }
-        TextOutA(hdc, 0, y, line_text, len);
+        TextOutA(hdc, 0, y, line_text.c_str(), line_text.length());
         y += font_h;
     }
 
