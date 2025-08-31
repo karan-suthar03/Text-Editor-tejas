@@ -156,6 +156,7 @@ void ed_InsertCharAtCursor(GapBuffer *gb, char ch) {
         if (gb->gap_start > 0) {
             gb->gap_start--;
             gb->cur_pos = gb->gap_start;
+            LOG("[INSERT LOG] Backspace: gap_start=%d, gap_end=%d, cur_pos=%d\n", gb->gap_start, gb->gap_end, gb->cur_pos);
         }
         return;
     }
@@ -164,6 +165,8 @@ void ed_InsertCharAtCursor(GapBuffer *gb, char ch) {
 
     gb->data.chars[gb->gap_start++] = ch;
     gb->cur_pos = gb->gap_start;
+
+    LOG("[INSERT LOG] Inserted char '%c': gap_start=%d, gap_end=%d, cur_pos=%d\n", ch, gb->gap_start, gb->gap_end, gb->cur_pos);
 
     ed_RecalculateLines(gb);
 }
