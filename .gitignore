@@ -1,5 +1,9 @@
+main.cpp
+base.h
 
 todo.md
 test.txt
 
 bin/
+
+.gitignore
