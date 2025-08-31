@@ -53,45 +53,6 @@ internal void MoveGapToCursor(GapBuffer* gb) {
     }
 }
 
-internal int GetCursorRow(GapBuffer *gb) {
-
-    for (int i = 0; i < gb->lines.count; i++) {
-        Line l = gb->lines.items[i];
-        if (gb->cur_pos >= l.start && gb->cur_pos <= l.end) return i;
-    }
-
-    return gb->lines.count;
-}
-
-internal int GetCursorCol(GapBuffer *gb) {
-
-   int row = GetCursorRow(gb);
-   if (row >= gb->lines.count) return 0;
-
-   Line l = gb->lines.items[row];
-   int index = l.start, col = 0;
-
-   while (index <= l.end) {
-
-        if (index > gb->gap_start && index <= gb->gap_end) {
-            index = gb->gap_end + 1;
-            continue;
-        }
-
-        if (index == gb->cur_pos || index >= l.end)
-            return col;
-
-        // NOTE(Tejas): just in case...
-        if (index >= gb->data.capacity)
-            return col;
-
-        index++;
-        col++;
-   }
-
-   return col;
-}
-
 void ed_Init(Editor **ed, const char* file_name) {
 
     *ed = (Editor*)AllocateMem(sizeof(Editor));
@@ -125,7 +86,7 @@ void ed_Init(Editor **ed, const char* file_name) {
     gb->lines.items    = (Line*)AllocateMem(sizeof(Line) * gb->lines.capacity);
     gb->lines.count    = 0;
 
-    ed_RecalculateLines(*ed);
+    ed_RecalculateLines(gb);
 }
 
 void ed_Close(Editor *ed) {
@@ -135,11 +96,9 @@ void ed_Close(Editor *ed) {
     FreeMem(ed);
 }
 
-void ed_RecalculateLines(Editor *ed) {
+void ed_RecalculateLines(GapBuffer *gb) {
 
     // NOTE(Tejas): Could this be just an internal function for this TU? Maybe...
-
-    GapBuffer *gb = &(ed->gb);
 
     gb->lines.count = 0;;
     int start = 0, index = 0;
@@ -183,9 +142,7 @@ void ed_RecalculateLines(Editor *ed) {
     }
 }
 
-void ed_InsertCharAtCursor(Editor *ed, char ch) {
-
-    GapBuffer *gb = &(ed->gb);
+void ed_InsertCharAtCursor(GapBuffer *gb, char ch) {
 
     // find out at what index in the buffer is the cursor in
     // and check if its equal to gap_start. If not then move
@@ -208,12 +165,50 @@ void ed_InsertCharAtCursor(Editor *ed, char ch) {
     gb->data.chars[gb->gap_start++] = ch;
     gb->cur_pos = gb->gap_start;
 
-    ed_RecalculateLines(ed);
+    ed_RecalculateLines(gb);
 }
 
-void ed_MoveCursorRight(Editor *ed) {
+int ed_GetCursorRow(GapBuffer *gb) {
+
+    for (int i = 0; i < gb->lines.count; i++) {
+        Line l = gb->lines.items[i];
+        if (gb->cur_pos >= l.start && gb->cur_pos <= l.end) return i;
+    }
+
+    return gb->lines.count;
+}
+
+int ed_GetCursorCol(GapBuffer *gb) {
+
+   int row = ed_GetCursorRow(gb);
+   if (row >= gb->lines.count) return 0;
+
+   Line l = gb->lines.items[row];
+   int index = l.start, col = 0;
+
+   while (index <= l.end) {
+
+        if (index > gb->gap_start && index <= gb->gap_end) {
+            index = gb->gap_end + 1;
+            continue;
+        }
+
+        if (index == gb->cur_pos || index >= l.end)
+            return col;
+
+        // NOTE(Tejas): just in case...
+        if (index >= gb->data.capacity)
+            return col;
+
+        index++;
+        col++;
+   }
+
+   return col;
+}
+
+void ed_MoveCursorRight(GapBuffer *gb) {
     
-    GapBuffer *gb = &(ed->gb);
     gb->cur_pos++;
 
     if (gb->cur_pos > gb->gap_start && gb->cur_pos <= gb->gap_end) {
@@ -227,9 +222,8 @@ void ed_MoveCursorRight(Editor *ed) {
     }
 }
 
-void ed_MoveCursorLeft(Editor *ed) {
+void ed_MoveCursorLeft(GapBuffer *gb) {
     
-    GapBuffer *gb = &(ed->gb);
     gb->cur_pos--;
 
     if (gb->cur_pos > gb->gap_start && gb->cur_pos <= gb->gap_end) {
@@ -239,13 +233,12 @@ void ed_MoveCursorLeft(Editor *ed) {
     if (gb->cur_pos < 0) gb->cur_pos = 0;
 }
 
-void ed_MoveCursorUp(Editor *ed) {
+void ed_MoveCursorUp(GapBuffer *gb) {
 
     // TODO(Tejas): column number presist.
     
-    GapBuffer *gb = &(ed->gb);
-    int row = GetCursorRow(gb);
-    int col = GetCursorCol(gb);
+    int row = ed_GetCursorRow(gb);
+    int col = ed_GetCursorCol(gb);
 
     if (row <= 0) return;
 
@@ -268,13 +261,12 @@ void ed_MoveCursorUp(Editor *ed) {
     gb->cur_pos = index;
 }
 
-void ed_MoveCursorDown(Editor *ed) {
+void ed_MoveCursorDown(GapBuffer *gb) {
 
     // TODO(Tejas): column number presist.
     
-    GapBuffer *gb = &(ed->gb);
-    int row = GetCursorRow(gb);
-    int col = GetCursorCol(gb);
+    int row = ed_GetCursorRow(gb);
+    int col = ed_GetCursorCol(gb);
 
     if (row >= (gb->lines.count - 1)) return;
 

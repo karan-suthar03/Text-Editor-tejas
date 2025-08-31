@@ -48,13 +48,16 @@ struct Editor {
 void ed_Init(Editor **ed, const char *file_name);
 void ed_Close(Editor *ed);
 
-void ed_RecalculateLines(Editor *ed);
+void ed_RecalculateLines(GapBuffer *gb);
 
-void ed_InsertCharAtCursor(Editor *ed, char ch);
+void ed_InsertCharAtCursor(GapBuffer *gb, char ch);
 
-void ed_MoveCursorRight(Editor *ed);
-void ed_MoveCursorLeft(Editor *ed);
-void ed_MoveCursorUp(Editor *ed);
-void ed_MoveCursorDown(Editor *ed);
+int ed_GetCursorRow(GapBuffer *gb);
+int ed_GetCursorCol(GapBuffer *gb);
+
+void ed_MoveCursorRight(GapBuffer *gb);
+void ed_MoveCursorLeft(GapBuffer *gb);
+void ed_MoveCursorUp(GapBuffer *gb);
+void ed_MoveCursorDown(GapBuffer *gb);
 
 #endif // EDITOR_H

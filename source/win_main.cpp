@@ -62,25 +62,8 @@ internal void RenderGapBuffer(HDC hdc, GapBuffer *gb, int font_w, int font_h) {
 
 internal void RenderCursor(HDC hdc, GapBuffer *gb, int font_w, int font_h) {
 
-    int x = 0, y = 0;
-
-    for (int index = 0; index < gb->data.capacity; index++) {
-
-        if (index == gb->cur_pos) break;
-
-        if (index >= gb->gap_start && index < gb->gap_end)
-            continue;
-
-        char ch = gb->data.chars[index];
-
-        if (ch == '\n') {
-            x = 0;
-            y += font_h;
-        } else {
-            x += font_w;
-        }
-    }
-
+    int y = ed_GetCursorRow(gb) * font_h;
+    int x = ed_GetCursorCol(gb) * font_w;
     Rectangle(hdc, x, y, x + 3, y + font_h);
 }
 
@@ -109,7 +92,7 @@ internal LRESULT WINAPI WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         bool ctrl_down = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
 
         if (!ctrl_down) {
-            ed_InsertCharAtCursor(G_editor, (char)wParam);
+            ed_InsertCharAtCursor(&(G_editor->gb), (char)wParam);
             InvalidateRect(hwnd, NULL, TRUE);
         }
 
@@ -134,22 +117,22 @@ internal LRESULT WINAPI WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         } break;
 
         case VK_RIGHT: {
-            ed_MoveCursorRight(G_editor);
+            ed_MoveCursorRight(&(G_editor->gb));
             InvalidateRect(hwnd, NULL, TRUE);
         } break;
 
         case VK_LEFT: {
-            ed_MoveCursorLeft(G_editor);
+            ed_MoveCursorLeft(&(G_editor->gb));
             InvalidateRect(hwnd, NULL, TRUE);
         } break;
 
         case VK_UP: {
-            ed_MoveCursorUp(G_editor);
+            ed_MoveCursorUp(&(G_editor->gb));
             InvalidateRect(hwnd, NULL, TRUE);
         } break;
 
         case VK_DOWN: {
-            ed_MoveCursorDown(G_editor);
+            ed_MoveCursorDown(&(G_editor->gb));
             InvalidateRect(hwnd, NULL, TRUE);
         } break;
 
