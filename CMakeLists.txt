@@ -12,9 +12,14 @@ set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT T
 
 if(WIN32)
     target_link_libraries(TextEditor PRIVATE
-        user32
-        gdi32
-        kernel32
+            user32
+            gdi32
+            kernel32
     )
-    set_target_properties(TextEditor PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS")
+
+    if(MSVC)
+        set_target_properties(TextEditor PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS")
+    else()
+        set_target_properties(TextEditor PROPERTIES LINK_FLAGS "-Wl,-subsystem,windows")
+    endif()
 endif()

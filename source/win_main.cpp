@@ -32,6 +32,11 @@ internal void RenderGapBuffer(HDC hdc, GapBuffer *gb, int font_w, int font_h) {
     // NOTE(Tejas): font_w will be used for line wrapping in the future.
     (void)font_w;
 
+
+    LOG("[FRAME LOG] GapBuffer: gap_start=%d, gap_end=%d, cur_pos=%d, data.capacity=%d, lines.count=%d\n",
+        gb->gap_start, gb->gap_end, gb->cur_pos, gb->data.capacity, gb->lines.count);
+    LOG("[FRAME LOG] Cursor: row=%d, col=%d\n", ed_GetCursorRow(gb), ed_GetCursorCol(gb));
+
     SetTextColor(hdc, G_editor_opt.font_color);
     SetBkMode(hdc, TRANSPARENT);
     
@@ -190,6 +195,13 @@ internal LRESULT WINAPI WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 }
 
 int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
+
+#ifndef NDEBUG
+    AllocConsole();
+    FILE* fp;
+    freopen_s(&fp, "CONOUT$", "w", stdout);
+    freopen_s(&fp, "CONOUT$", "w", stderr);
+#endif
 
     int wnd_width  = 1000;
     int wnd_height = 800;

@@ -14,6 +14,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Logging macro: only enabled in debug builds
+#ifndef NDEBUG
+#  define LOG(...) printf(__VA_ARGS__)
+#else
+#  define LOG(...) ((void)0)
+#endif
+
 // Figuring out the Operating System
 #if defined(_WIN32)
 #  define ON_WINDOWS 1
