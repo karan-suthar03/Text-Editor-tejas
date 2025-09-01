@@ -197,7 +197,11 @@ internal LRESULT WINAPI WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
 
 #ifndef NDEBUG
-    AllocConsole();
+    bool console_attached = false;
+    if (!AttachConsole(ATTACH_PARENT_PROCESS)) {
+        AllocConsole();
+        console_attached = true;
+    }
     FILE* fp;
     freopen_s(&fp, "CONOUT$", "w", stdout);
     freopen_s(&fp, "CONOUT$", "w", stderr);
@@ -228,6 +232,10 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
+
+#ifndef NDEBUG
+    if (console_attached) FreeConsole();
+#endif
 
     return 0;
 }

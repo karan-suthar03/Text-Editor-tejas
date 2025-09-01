@@ -1,6 +1,7 @@
 todo.md
 test.txt
-.gitignore
 bin/
 build.bat/
+build/
+.gitignore
 
